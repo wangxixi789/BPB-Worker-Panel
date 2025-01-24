@@ -1,9 +1,12 @@
-name: Build and Deploy Worker
+name: Build Obfuscate BPB Panel
 
 on:
   push:
     branches:
-      - dev
+      - main
+  schedule:
+        # Runs everyday at 1:00 AM
+        - cron: "0 1 * * *"
 
 permissions:
   contents: write
@@ -22,19 +25,33 @@ jobs:
           node-version: "latest"
 
       - name: Install dependencies
-        run: npm install
-
-      - name: Build project
         run: |
-          npx wrangler deploy src/worker.js --name bpb-worker-panel --compatibility-flag [nodejs_compat] --compatibility-date 2024-10-26 --dry-run --outdir=dist
-          npx javascript-obfuscator dist/worker.js --output _worker.js
+          npm install -g javascript-obfuscator
 
-      - name: Commit and push built worker
+      - name: Clone BPB workjs
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add _worker.js
-          git commit -m "Automated build: update _worker.js"
-          git push
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          wget -O origin.js https://raw.githubusercontent.com/bia-pain-bache/BPB-Worker-Panel/refs/heads/main/unobfuscated/worker.js
+      
+      - name: Obfuscate BPB worker js
+        run: |
+          javascript-obfuscator origin.js --output _worker.js \
+          --compact true \
+          --control-flow-flattening true \
+          --control-flow-flattening-threshold 1 \
+          --dead-code-injection true \
+          --dead-code-injection-threshold 1 \
+          --identifier-names-generator hexadecimal \
+          --rename-globals true \
+          --string-array true \
+          --string-array-encoding 'rc4' \
+          --string-array-threshold 1 \
+          --transform-object-keys true \
+          --unicode-escape-sequence true
+
+      - name: Commit changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          branch: main
+          commit_message: ':arrow_up: update latest bpb panel'
+          commit_author: 'github-actions[bot] <github-actions[bot]@users.noreply.github.com>'
+          push_options: '--set-upstream'
